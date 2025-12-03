@@ -28,5 +28,5 @@ jobs:
         working-directory: backend
         env:
           NODE_ENV: test
-          # Add secrets if needed, e.g. FIREBASE_CREDENTIALS: ${{ secrets.FIREBASE_CREDENTIALS }}
+          # Add other secrets here only if needed (prefer NOT to for test runs)
         run: npm test

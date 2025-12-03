@@ -7,8 +7,8 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "test": "cross-env NODE_ENV=test vitest run --threads=false",
-    "test:watch": "cross-env NODE_ENV=test vitest",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "lint": "eslint . --ext js --report-unused-disable-directives --max-warnings 0",
     "lint-fix": "eslint . --ext js --report-unused-disable-directives --max-warnings 0 --fix",
     "setup": "node setup-env.js"
