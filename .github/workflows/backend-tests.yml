@@ -28,7 +28,5 @@ jobs:
         working-directory: backend
         env:
           NODE_ENV: test
-          # if code accesses FIREBASE_CREDENTIALS or other secrets during import, ensure you set them
-          # but with the refactor we skip firebase init in test env; so this is optional
-          # FIREBASE_CREDENTIALS: ${{ secrets.FIREBASE_CREDENTIALS }}
+          # Add secrets if needed, e.g. FIREBASE_CREDENTIALS: ${{ secrets.FIREBASE_CREDENTIALS }}
         run: npm test
