@@ -1,15 +1,12 @@
 // backend/tests/setupTest.js
 import mongoose from "mongoose";
 import { MongoMemoryServer } from "mongodb-memory-server";
+import { beforeAll, afterAll, afterEach } from "vitest";
 
 let mongoServer;
 
-/**
- * This file will be referenced from vitest.config.js as setupFiles.
- * It will run before tests. We export an async default that vitest will
- * run before loading tests (works with setupFiles).
- */
-export default async () => {
+// Start an in-memory MongoDB before any tests run
+beforeAll(async () => {
   mongoServer = await MongoMemoryServer.create();
   const uri = mongoServer.getUri();
 
@@ -17,16 +14,28 @@ export default async () => {
     useNewUrlParser: true,
     useUnifiedTopology: true,
   });
+});
 
-  // Expose the mongo server globally so tests can stop it in afterAll if needed
-  global.__MONGO_SERVER__ = mongoServer;
-
-  // Optionally, provide a helper to clear DB between tests (each test file can call it)
-  global.clearTestDatabase = async () => {
-    const collections = mongoose.connection.collections;
-    for (const key in collections) {
+// Clear DB after each test to keep isolation
+afterEach(async () => {
+  const collections = mongoose.connection.collections;
+  for (const key in collections) {
+    // If collection exists, delete all documents
+    if (Object.prototype.hasOwnProperty.call(collections, key)) {
       // eslint-disable-next-line no-await-in-loop
       await collections[key].deleteMany({});
     }
-  };
-};
+  }
+});
+
+// Disconnect and stop the in-memory server after all tests complete
+afterAll(async () => {
+  try {
+    await mongoose.disconnect();
+  } catch (e) {
+    // ignore disconnect errors
+  }
+  if (mongoServer) {
+    await mongoServer.stop();
+  }
+});

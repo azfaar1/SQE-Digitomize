@@ -28,7 +28,7 @@ describe("getUser unit tests", () => {
   });
 
   it("returns user by username", async () => {
-    const u = await User.create({
+    await User.create({
       uid: "g1",
       username: "userone",
       name: "User One",
@@ -43,7 +43,7 @@ describe("getUser unit tests", () => {
   });
 
   it("returns user by email", async () => {
-    const u = await User.create({
+    await User.create({
       uid: "g2",
       username: "usertwo",
       name: "User Two",
@@ -56,13 +56,8 @@ describe("getUser unit tests", () => {
     expect(found.username).toBe("usertwo");
   });
 
-  it("throws when user not found (getUser catches and rethrows)", async () => {
-    let err;
-    try {
-      await getUser("doesnotexist");
-    } catch (e) {
-      err = e;
-    }
-    expect(err).toBeDefined();
+  it("returns null when user not found", async () => {
+    const found = await getUser("doesnotexist");
+    expect(found).toBeNull();
   });
 });
