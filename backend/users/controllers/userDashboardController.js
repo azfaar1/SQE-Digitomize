@@ -1,27 +1,18 @@
 import User from "../models/User.js";
+// Replace the current handleUserDashboard function with this fixed version:
 
 const handleUserDashboard = async (req, res) => {
   try {
-    // Check if user is logged in using the checkAuth middleware
-    // if (!req.userId) {
-    //   // User is not logged in, redirect to the login page
-    //   return res.redirect('/login');
-    // }
-
-    // User is logged in, fetch user data from the database
     const userId = req.decodedToken.uid;
     const user = await User.findOne({ uid: userId }).select(
       "-_id -password -createdAt -updatedAt -__v",
     );
 
     if (!user) {
-      // User not found, redirect to the login page
-      return res
-        .status(404)
-        .json({ message: "User not found", error: "User not found" });
+      return res.status(404).json({ message: "User not found" });
     }
 
-    // Construct the JSON response with all fields
+    // Construct the JSON response with proper null checks
     const jsonResponse = {
       personal_data: {
         uid: user.uid,
@@ -33,53 +24,51 @@ const handleUserDashboard = async (req, res) => {
         email_verified: user.email_verified,
         email: user.email,
         email_show: user.email_show,
-        skills: user.skills,
-        education: user.education,
-        preferences: user?.preferences,
-        bio: {
+        skills: user.skills || null,
+        education: user.education || null,
+        preferences: user?.preferences || null,
+        bio: user.bio ? {
           data: user.bio.data || null,
-          showOnWebsite: user.bio.showOnWebsite,
-        },
-        phoneNumber: {
+          showOnWebsite: user.bio.showOnWebsite || false
+        } : null,
+        phoneNumber: user.phoneNumber ? {
           data: user.phoneNumber.data || null,
-          showOnWebsite: user.phoneNumber.showOnWebsite,
-        },
-        dateOfBirth: {
+          showOnWebsite: user.phoneNumber.showOnWebsite || false
+        } : null,
+        dateOfBirth: user.dateOfBirth ? {
           data: user.dateOfBirth.data || null,
-          showOnWebsite: user.dateOfBirth.showOnWebsite,
-        },
+          showOnWebsite: user.dateOfBirth.showOnWebsite || false
+        } : null,
       },
-      github: {
+      github: user.github ? {
         data: user.github.data || null,
-        showOnWebsite: user.github.showOnWebsite,
-      },
+        showOnWebsite: user.github.showOnWebsite || false
+      } : null,
       social: {
-        linkedin: user.social.linkedin || null,
-        instagram: user.social.instagram || null,
-        twitter: user.social.twitter || null,
+        linkedin: user.social?.linkedin || null,
+        instagram: user.social?.instagram || null,
+        twitter: user.social?.twitter || null,
       },
       ratings: {
         codeforces: {
-          data: user.codeforces.username || null,
-          showOnWebsite: user.codeforces.showOnWebsite,
+          data: user.codeforces?.username || null,
+          showOnWebsite: user.codeforces?.showOnWebsite || false
         },
         codechef: {
-          data: user.codechef.username || null,
-          showOnWebsite: user.codechef.showOnWebsite,
+          data: user.codechef?.username || null,
+          showOnWebsite: user.codechef?.showOnWebsite || false
         },
         leetcode: {
-          data: user.leetcode.username || null,
-          showOnWebsite: user.leetcode.showOnWebsite,
+          data: user.leetcode?.username || null,
+          showOnWebsite: user.leetcode?.showOnWebsite || false
         },
-        digitomize_rating: user.digitomize_rating,
+        digitomize_rating: user.digitomize_rating || null,
       },
     };
-    // console.log(jsonResponse.education);
-    // Send the JSON response to the client
+
     res.status(200).json(jsonResponse);
   } catch (error) {
     console.error("Error:", error);
-    // Internal server error, send a 500 Internal Server Error status
     res.status(500).json({ error: "Internal server error" });
   }
 };

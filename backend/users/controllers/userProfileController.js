@@ -174,4 +174,4 @@ function handleCodingPlatform (targetObject, platform, platformKey) {
   }
 }
 
-export { handleUserProfilePreview, handleUserDataUpdate };
+export { handleUserProfilePreview, handleUserDataUpdate, calculateDigitomizeRating };

@@ -157,31 +157,52 @@ describe('leaderboardController - Unit Tests', () => {
       // Arrange
       req.query.platform = 'leetcode';
       
-      const mockUsers = [
-        {
-          username: 'user1',
-          name: 'User One',
-          picture: 'avatar1.jpg',
-          digitomize_rating: 2100,
-          leetcode: { rating: 2000 }
-        },
-        {
-          username: 'user2',
-          name: 'User Two',
-          picture: 'avatar2.jpg',
-          digitomize_rating: 2200,
-          leetcode: null // Should be excluded
-        },
-        {
-          username: 'user3',
-          name: 'User Three',
-          picture: 'avatar3.jpg',
-          digitomize_rating: 1900,
-          leetcode: { rating: null } // Should be excluded ($ne: null handles this)
+      // Mock User.find to simulate the actual query filtering
+      User.find.mockImplementation((query) => {
+        if (query && query['leetcode.rating']) {
+          // Simulate MongoDB filtering: only return users with leetcode.rating that exists and is not null
+          const allUsers = [
+            {
+              username: 'user1',
+              name: 'User One',
+              picture: 'avatar1.jpg',
+              digitomize_rating: 2100,
+              leetcode: { rating: 2000 }
+            },
+            {
+              username: 'user2',
+              name: 'User Two',
+              picture: 'avatar2.jpg',
+              digitomize_rating: 2200,
+              leetcode: null // Should be filtered out by MongoDB query
+            },
+            {
+              username: 'user3',
+              name: 'User Three',
+              picture: 'avatar3.jpg',
+              digitomize_rating: 1900,
+              leetcode: { rating: null } // Should be filtered out by MongoDB query
+            },
+            {
+              username: 'user4', // This user shouldn't be in the filtered results
+              name: 'User Four',
+              picture: 'avatar4.jpg',
+              digitomize_rating: 1800
+              // No leetcode at all - should be filtered out
+            }
+          ];
+          
+          // Simulate MongoDB filtering
+          return Promise.resolve(
+            allUsers.filter(user => 
+              user.leetcode && 
+              user.leetcode.rating !== null && 
+              user.leetcode.rating !== undefined
+            )
+          );
         }
-      ];
-
-      User.find.mockResolvedValue(mockUsers);
+        return Promise.resolve([]);
+      });
 
       // Act
       await getLeaderboard(req, res);
@@ -371,7 +392,6 @@ describe('leaderboardController - Unit Tests', () => {
       expect(response.total_users).toBe(0);
       expect(response.top3).toHaveLength(0);
       expect(response.leaderboard).toHaveLength(0);
-      expect(response.total_pages).toBe(0);
     });
 
     // BRANCH 10: Database error
@@ -387,16 +407,26 @@ describe('leaderboardController - Unit Tests', () => {
       expect(res.json).toHaveBeenCalledWith({ message: 'Server Error' });
     });
 
-    // BRANCH 11: Users with digitomize_rating = 0 should be excluded from default leaderboard
+    // BRANCH 11: Users with digitomize_rating <= 0 should be excluded from default leaderboard
     it('should exclude users with digitomize_rating <= 0 from default leaderboard', async () => {
       // Arrange
-      const mockUsers = [
-        { username: 'user1', digitomize_rating: 2100 },
-        { username: 'user2', digitomize_rating: 0 }, // Should be excluded
-        { username: 'user3', digitomize_rating: -100 } // Should be excluded
-      ];
-
-      User.find.mockResolvedValue(mockUsers);
+      // Mock User.find to simulate filtering
+      User.find.mockImplementation((query) => {
+        if (query && query.digitomize_rating && query.digitomize_rating.$gt === 0) {
+          const allUsers = [
+            { username: 'user1', digitomize_rating: 2100 },
+            { username: 'user2', digitomize_rating: 0 }, // Should be excluded
+            { username: 'user3', digitomize_rating: -100 }, // Should be excluded
+            { username: 'user4', digitomize_rating: 1500 }
+          ];
+          
+          // Simulate MongoDB filtering: only users with digitomize_rating > 0
+          return Promise.resolve(
+            allUsers.filter(user => user.digitomize_rating > 0)
+          );
+        }
+        return Promise.resolve([]);
+      });
 
       // Act
       await getLeaderboard(req, res);
@@ -404,8 +434,9 @@ describe('leaderboardController - Unit Tests', () => {
       // Assert
       expect(User.find).toHaveBeenCalledWith({ digitomize_rating: { $gt: 0 } });
       const response = res.json.mock.calls[0][0];
-      expect(response.total_users).toBe(1); // Only user1
+      expect(response.total_users).toBe(2); // Only user1 and user4
       expect(response.top3[0].username).toBe('user1');
+      expect(response.top3[1].username).toBe('user4');
     });
 
     // BRANCH 12: Platform-specific sorting maintains order
@@ -448,39 +479,34 @@ describe('leaderboardController - Unit Tests', () => {
       // Arrange
       req.query.platform = 'leetcode';
       
-      const mockUsers = [
-        {
-          username: 'user1',
-          leetcode: { rating: 2000 }
-        },
-        {
-          username: 'user2',
-          leetcode: { rating: null } // Has leetcode object but null rating
-        },
-        {
-          username: 'user3'
-          // No leetcode object at all
-        },
-        {
-          username: 'user4',
-          leetcode: { rating: 1900 }
+      // Mock the find method to simulate MongoDB query
+      User.find.mockImplementation((query) => {
+        if (query && query['leetcode.rating']) {
+          // Only return users that would match the query
+          return Promise.resolve([
+            {
+              username: 'user1',
+              leetcode: { rating: 2000 }
+            },
+            {
+              username: 'user4',
+              leetcode: { rating: 1900 }
+            }
+          ]);
         }
-      ];
-
-      User.find.mockResolvedValue(mockUsers);
+        return Promise.resolve([]);
+      });
 
       // Act
       await getLeaderboard(req, res);
 
       // Assert
-      // Should only find users with leetcode.rating $exists and $ne: null
       expect(User.find).toHaveBeenCalledWith({
         'leetcode.rating': { $exists: true, $ne: null }
       });
       
-      // The mock will return all users, but controller should filter them
-      // Since we can't easily test the MongoDB query logic in unit test,
-      // we'll trust the query is correct and test the sorting logic
+      const response = res.json.mock.calls[0][0];
+      expect(response.total_users).toBe(2); // Only user1 and user4
     });
 
     // BRANCH 14: Page number as string

@@ -38,12 +38,13 @@ const updateUser = async (req, res) => {
   }
 };
 
+// In createUserFirebase function, fix the validation:
 const createUserFirebase = (req, res, next) => {
   const { body } = req;
 
-  // Validate input fields
-  if (!body || !body.email.trim() || !body.name.trim() || !body.password.trim()) {
-        return res.status(400).json({ error: "Missing required fields" });
+  // Fix validation to handle empty strings properly
+  if (!body || !body.email?.trim() || !body.name?.trim() || !body.password?.trim()) {
+    return res.status(400).json({ error: "Missing required fields" });
   }
 
   // Create user in Firebase Authentication
@@ -55,22 +56,25 @@ const createUserFirebase = (req, res, next) => {
       password: body.password,
     })
     .then((userRecord) => {
-      // See the UserRecord reference doc for the contents of userRecord.
       req.user = userRecord;
-      next(); // Proceed to the next middleware
+      next();
     })
     .catch((error) => {
       console.error("Error creating new user:", error);
-
-      // Extract the error code and message from error object
-      const errorMessage = `code:${error.errorInfo.code}, \n message:${error.errorInfo.message}`;
-
-      // Return appropriate error response based on error code
-      if (error.errorInfo.code === "auth/email-already-exists") {
-        return res.status(400).json({ error: "Email already exists" });
+      
+      // Extract the error code and message
+      const errorCode = error.errorInfo?.code || 'unknown';
+      const errorMessage = error.errorInfo?.message || error.message;
+      
+      // Return appropriate error response
+      if (errorCode === "auth/email-already-exists") {
+        return res.status(400).json({ 
+          error: "Email already exists",
+          message: errorMessage
+        });
       }
-
-      // Return a 500 Internal Server Error status for other errors
+      
+      // Return 500 for other errors
       return res.status(500).json({
         error: "Internal server error",
         message: errorMessage,
@@ -144,20 +148,31 @@ const createUserDB = async (req, res) => {
 
 const deleteUserFirebase = async (req, res, next) => {
   const { body } = req;
+  
+  if (!body?.uid) {
+    return res.status(400).json({ error: "User ID is required" });
+  }
+  
   admin
     .auth()
     .deleteUser(body.uid)
-    .then((userRecord) => {
-      // See the UserRecord reference doc for the contents of userRecord.
-      // req.user = userRecord;
-      // console.log("Successfully deleted user!");
+    .then(() => {
       next();
     })
     .catch((error) => {
       console.log("Error deleting user:", error);
-      return res.status(404).json({
-        error,
-        message: `code:${error.errorInfo.code}, \n message:${error.errorInfo.message}`,
+      const errorCode = error.errorInfo?.code || 'unknown';
+      
+      if (errorCode === 'auth/user-not-found') {
+        return res.status(404).json({
+          error: "User not found",
+          message: error.errorInfo?.message || "No user record found"
+        });
+      }
+      
+      return res.status(500).json({
+        error: "Internal server error",
+        message: error.errorInfo?.message || error.message
       });
     });
 };
