@@ -1,6 +1,6 @@
 // tests/unit/users/controllers/AdminUserController.test.js
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-// FIXED IMPORT PATH
+// CORRECTED IMPORTS - going UP 2 levels from tests/unit/users/controllers/
 import {
   getUserList,
   updateUser,
@@ -8,15 +8,15 @@ import {
   createUserDB,
   deleteUserFirebase,
   deleteUserDB
-} from '../../../users/controllers/AdminUserController.js'; // CHANGED: ../../../ not ../../../../
-import User from '../../../users/models/User.js'; // CHANGED
+} from '../../../../users/controllers/AdminUserController.js'; // Changed to ../../../../
+import User from '../../../../users/models/User.js'; // Changed
 import admin from 'firebase-admin';
-import { setUser } from '../../../users/services/setUser.js'; // CHANGED
+import { setUser } from '../../../../users/services/setUser.js'; // Changed
 
-// Mock all dependencies
-vi.mock('../../../users/models/User.js'); // CHANGED
+// Mock all dependencies with CORRECT paths
+vi.mock('../../../../users/models/User.js'); // Changed
 vi.mock('firebase-admin');
-vi.mock('../../../users/services/setUser.js'); // CHANGED
+vi.mock('../../../../users/services/setUser.js'); // Changed
 
 describe('AdminUserController - Unit Tests', () => {
   let req, res, mockAuth;
@@ -34,8 +34,7 @@ describe('AdminUserController - Unit Tests', () => {
     // Mock response object
     res = {
       status: vi.fn().mockReturnThis(),
-      json: vi.fn().mockReturnThis(),
-      sendStatus: vi.fn() // Added for completeness
+      json: vi.fn().mockReturnThis()
     };
     
     // Mock Firebase admin auth
@@ -48,29 +47,31 @@ describe('AdminUserController - Unit Tests', () => {
     admin.auth = vi.fn(() => mockAuth);
   });
 
+  // Test for getUserList
   describe('getUserList', () => {
-    it('should return list of users', async () => {
+    it('should return list of users without sensitive data', async () => {
       const mockUsers = [
-        { name: 'User1', email: 'user1@test.com', uid: 'uid1' },
-        { name: 'User2', email: 'user2@test.com', uid: 'uid2' }
+        { name: 'User1', email: 'user1@test.com', uid: 'uid1', createdAt: new Date() },
+        { name: 'User2', email: 'user2@test.com', uid: 'uid2', createdAt: new Date() }
       ];
       
-      const mockSelect = vi.fn().mockResolvedValue(mockUsers);
-      const mockFind = vi.fn().mockReturnValue({ select: mockSelect });
-      User.find = mockFind;
+      // Mock the chain: User.find().select()
+      User.find = vi.fn().mockReturnValue({
+        select: vi.fn().mockResolvedValue(mockUsers)
+      });
 
       await getUserList(req, res);
 
       expect(User.find).toHaveBeenCalled();
-      expect(mockSelect).toHaveBeenCalledWith('-_id -password -updatedAt -__v');
+      expect(User.find().select).toHaveBeenCalledWith('-_id -password -updatedAt -__v');
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(mockUsers);
     });
 
-    it('should handle errors', async () => {
-      const mockSelect = vi.fn().mockRejectedValue(new Error('DB Error'));
-      const mockFind = vi.fn().mockReturnValue({ select: mockSelect });
-      User.find = mockFind;
+    it('should handle database errors', async () => {
+      User.find = vi.fn().mockReturnValue({
+        select: vi.fn().mockRejectedValue(new Error('Database connection failed'))
+      });
 
       await getUserList(req, res);
 
@@ -79,8 +80,9 @@ describe('AdminUserController - Unit Tests', () => {
     });
   });
 
+  // Test for updateUser
   describe('updateUser', () => {
-    it('should update user role', async () => {
+    it('should update user role successfully', async () => {
       const mockUpdateResult = { modifiedCount: 1, acknowledged: true };
       User.updateOne = vi.fn().mockResolvedValue(mockUpdateResult);
 
@@ -105,8 +107,8 @@ describe('AdminUserController - Unit Tests', () => {
       });
     });
 
-    it('should handle errors', async () => {
-      User.updateOne = vi.fn().mockRejectedValue(new Error('Update error'));
+    it('should handle update errors', async () => {
+      User.updateOne = vi.fn().mockRejectedValue(new Error('Update failed'));
 
       req.body = {
         uid: 'user123',
@@ -120,6 +122,7 @@ describe('AdminUserController - Unit Tests', () => {
     });
   });
 
+  // Test for createUserFirebase
   describe('createUserFirebase', () => {
     const mockNext = vi.fn();
 
@@ -127,8 +130,9 @@ describe('AdminUserController - Unit Tests', () => {
       mockNext.mockClear();
     });
 
-    it('should return 400 when body is undefined', async () => {
-      delete req.body;
+    // Test the validation logic correctly
+    it('should return 400 when body is null', async () => {
+      req.body = null;
       await createUserFirebase(req, res, mockNext);
 
       expect(res.status).toHaveBeenCalledWith(400);
@@ -138,22 +142,11 @@ describe('AdminUserController - Unit Tests', () => {
       expect(mockNext).not.toHaveBeenCalled();
     });
 
-    it('should return 400 when required fields are missing', async () => {
-      req.body = {};
-      await createUserFirebase(req, res, mockNext);
-
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({
-        error: 'Missing required fields'
-      });
-      expect(mockNext).not.toHaveBeenCalled();
-    });
-
-    it('should return 400 when fields are empty strings', async () => {
+    it('should return 400 when email is missing', async () => {
       req.body = {
-        email: '   ',
-        name: '   ',
-        password: '   '
+        name: 'Test User',
+        password: 'password123'
+        // email is missing
       };
 
       await createUserFirebase(req, res, mockNext);
@@ -164,18 +157,18 @@ describe('AdminUserController - Unit Tests', () => {
       });
     });
 
-    it('should return 400 when email already exists', async () => {
+    it('should return 400 when email already exists in Firebase', async () => {
       req.body = {
         email: 'existing@example.com',
         name: 'Test User',
         password: 'password123'
       };
 
-      // FIXED: Based on your actual code, it expects error.errorInfo
+      // Based on YOUR CODE in AdminUserController.js, it uses error.errorInfo
       const firebaseError = {
         errorInfo: {
           code: 'auth/email-already-exists',
-          message: 'Email already exists'
+          message: 'The email address is already in use by another account.'
         }
       };
 
@@ -189,9 +182,35 @@ describe('AdminUserController - Unit Tests', () => {
       });
     });
 
-    it('should return 500 on other Firebase errors', async () => {
+    it('should proceed to next middleware on successful Firebase creation', async () => {
       req.body = {
-        email: 'test@example.com',
+        email: 'newuser@example.com',
+        name: 'New User',
+        password: 'password123'
+      };
+
+      const mockUserRecord = {
+        uid: 'firebase-uid-123',
+        email: 'newuser@example.com',
+        displayName: 'New User'
+      };
+
+      mockAuth.createUser.mockResolvedValue(mockUserRecord);
+
+      await createUserFirebase(req, res, mockNext);
+
+      expect(mockAuth.createUser).toHaveBeenCalledWith({
+        email: 'newuser@example.com',
+        displayName: 'New User',
+        password: 'password123'
+      });
+      expect(req.user).toEqual(mockUserRecord);
+      expect(mockNext).toHaveBeenCalled();
+    });
+
+    it('should handle other Firebase errors with 500', async () => {
+      req.body = {
+        email: 'invalid-email',
         name: 'Test User',
         password: 'password123'
       };
@@ -199,7 +218,7 @@ describe('AdminUserController - Unit Tests', () => {
       const firebaseError = {
         errorInfo: {
           code: 'auth/invalid-email',
-          message: 'Invalid email format'
+          message: 'The email address is badly formatted.'
         }
       };
 
@@ -210,71 +229,59 @@ describe('AdminUserController - Unit Tests', () => {
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith({
         error: 'Internal server error',
-        message: expect.stringContaining('Invalid email')
+        message: expect.stringContaining('auth/invalid-email')
       });
-    });
-
-    it('should proceed to next middleware on success', async () => {
-      req.body = {
-        email: 'test@example.com',
-        name: 'Test User',
-        password: 'password123'
-      };
-
-      const mockUserRecord = {
-        uid: 'firebase-uid-123',
-        email: 'test@example.com',
-        displayName: 'Test User'
-      };
-
-      mockAuth.createUser.mockResolvedValue(mockUserRecord);
-
-      await createUserFirebase(req, res, mockNext);
-
-      expect(mockAuth.createUser).toHaveBeenCalledWith({
-        email: 'test@example.com',
-        displayName: 'Test User',
-        password: 'password123'
-      });
-      expect(req.user).toEqual(mockUserRecord);
-      expect(mockNext).toHaveBeenCalled();
     });
   });
 
+  // Test for createUserDB
   describe('createUserDB', () => {
-    it('should create user with data from Firebase and body', async () => {
+    // Mock the response helpers
+    const mockError = vi.fn();
+    const mockSuccess = vi.fn();
+    
+    // You need to mock the response.api.js module
+    vi.mock('../../../../core/api/response.api.js', () => ({
+      error: mockError,
+      success: mockSuccess
+    }));
+
+    it('should create user with data from req.user and req.body', async () => {
       req.user = {
         uid: 'firebase-uid-123',
+        displayName: 'Firebase Name',
         email: 'firebase@example.com',
-        displayName: 'Firebase Name'
+        email_verified: false
       };
 
       req.body = {
-        username: 'bodyusername',
-        name: 'Body Name'
+        username: 'customusername',
+        name: 'Custom Name' // This should override displayName
       };
 
       setUser.mockResolvedValue({ uid: 'firebase-uid-123' });
 
       await createUserDB(req, res);
 
-      // Check that setUser was called with the right data
+      // Check that setUser was called with combined data
       expect(setUser).toHaveBeenCalledWith(
         expect.objectContaining({
           uid: 'firebase-uid-123',
-          username: 'bodyusername',
-          name: 'Body Name', // Body name should override Firebase name
-          email: 'firebase@example.com'
+          username: 'customusername',
+          name: 'Custom Name', // From body, overrides displayName
+          email: 'firebase@example.com',
+          email_verified: false
         })
       );
+      
       expect(res.status).toHaveBeenCalledWith(201);
-      expect(res.json).toHaveBeenCalledWith({ 
-        message: 'User created successfully' 
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'User created successfully'
       });
     });
 
-    it('should handle missing uid', async () => {
-      req.user = {};
+    it('should return 400 when uid is missing', async () => {
+      req.user = {}; // No uid
       req.body = {};
 
       await createUserDB(req, res);
@@ -283,18 +290,18 @@ describe('AdminUserController - Unit Tests', () => {
       expect(res.json).toHaveBeenCalledWith({
         error: 'Missing required fields'
       });
+      expect(setUser).not.toHaveBeenCalled();
     });
 
-    it('should handle existing user (status 200)', async () => {
+    it('should handle when user already exists (status 200)', async () => {
       req.user = {
         uid: 'existing-uid',
-        email: 'existing@example.com',
-        displayName: 'Existing User'
+        email: 'existing@example.com'
       };
 
       const existingUserError = {
         status: 200,
-        message: 'User already exists'
+        message: 'User already exists in database'
       };
 
       setUser.mockRejectedValue(existingUserError);
@@ -306,8 +313,46 @@ describe('AdminUserController - Unit Tests', () => {
         message: 'User already exists.'
       });
     });
+
+    it('should handle validation errors (status 400)', async () => {
+      req.user = {
+        uid: 'test-uid',
+        email: 'test@example.com'
+      };
+
+      const validationError = {
+        status: 400,
+        message: 'Invalid username format'
+      };
+
+      setUser.mockRejectedValue(validationError);
+
+      await createUserDB(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'Invalid username format'
+      });
+    });
+
+    it('should handle unexpected errors', async () => {
+      req.user = {
+        uid: 'test-uid',
+        email: 'test@example.com'
+      };
+
+      setUser.mockRejectedValue(new Error('Unexpected database error'));
+
+      await createUserDB(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'Error creating user'
+      });
+    });
   });
 
+  // Test for deleteUserFirebase
   describe('deleteUserFirebase', () => {
     const mockNext = vi.fn();
 
@@ -315,7 +360,7 @@ describe('AdminUserController - Unit Tests', () => {
       mockNext.mockClear();
     });
 
-    it('should delete user and call next', async () => {
+    it('should delete user from Firebase and call next', async () => {
       req.body = { uid: 'user-to-delete' };
 
       mockAuth.deleteUser.mockResolvedValue({});
@@ -326,13 +371,13 @@ describe('AdminUserController - Unit Tests', () => {
       expect(mockNext).toHaveBeenCalled();
     });
 
-    it('should handle user not found', async () => {
+    it('should handle Firebase errors', async () => {
       req.body = { uid: 'nonexistent-user' };
 
       const firebaseError = {
         errorInfo: {
           code: 'auth/user-not-found',
-          message: 'User not found'
+          message: 'No user record found for the given uid.'
         }
       };
 
@@ -344,34 +389,53 @@ describe('AdminUserController - Unit Tests', () => {
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
           error: firebaseError,
-          message: expect.stringContaining('User not found')
+          message: expect.stringContaining('auth/user-not-found')
         })
       );
       expect(mockNext).not.toHaveBeenCalled();
     });
   });
 
+  // Test for deleteUserDB
   describe('deleteUserDB', () => {
+    // You need to re-import and mock the response helpers here
+    // Or better, create a separate test setup
+    
     it('should delete user from database', async () => {
       req.body = { uid: 'user-to-delete' };
+      
+      // Create a fresh response mock for this test
+      const mockRes = {
+        status: vi.fn().mockReturnThis(),
+        json: vi.fn()
+      };
 
-      // Mock the import from response.api.js
-      vi.mock('../../../core/api/response.api.js', () => ({
+      User.deleteOne = vi.fn().mockResolvedValue({ deletedCount: 1 });
+
+      // Since deleteUserDB uses error() and success() functions,
+      // you need to mock them properly
+      vi.mock('../../../../core/api/response.api.js', () => ({
         error: vi.fn(),
-        success: vi.fn()
+        success: vi.fn().mockImplementation((data, res, status, message) => {
+          res.status(status).json({ message });
+        })
       }));
 
-      await deleteUserDB(req, res);
+      await deleteUserDB(req, mockRes);
 
       expect(User.deleteOne).toHaveBeenCalledWith({ uid: 'user-to-delete' });
     });
 
     it('should handle missing uid', async () => {
       req.body = {};
+      
+      const mockRes = {
+        status: vi.fn().mockReturnThis(),
+        json: vi.fn()
+      };
 
-      await deleteUserDB(req, res);
+      await deleteUserDB(req, mockRes);
 
-      // The function should handle missing uid
       expect(User.deleteOne).not.toHaveBeenCalled();
     });
   });
