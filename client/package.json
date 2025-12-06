@@ -59,6 +59,7 @@
     "@vitejs/plugin-react": "^4.0.3",
     "autoprefixer": "^10.4.15",
     "clsx": "^2.1.1",
+    "cypress": "^15.7.1",
     "daisyui": "^4.4.24",
     "eslint": "^8.56.0",
     "eslint-config-standard": "^17.1.0",
