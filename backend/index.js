@@ -1,4 +1,5 @@
 // backend/index.js
+import "./instrument.js"
 import dotenv from "dotenv";
 dotenv.config();
 
