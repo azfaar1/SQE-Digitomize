@@ -28,20 +28,41 @@ const allowedOrigins = process.env.NODE_ENV === 'production'
   ? ['https://sqe-digitomize-production.up.railway.app', 'https://sqe-digitomize.up.railway.app']
   : ['http://localhost:5173'];
 
+// CORS & body parsing
 app.use(
   cors({
     origin: function (origin, callback) {
       // Allow requests with no origin (like mobile apps, curl, postman)
-      if (!origin) return callback(null, true);
-      
-      if (allowedOrigins.indexOf(origin) === -1) {
-        const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
-        return callback(new Error(msg), false);
+      if (!origin) {
+        return callback(null, true);
       }
-      return callback(null, true);
+      
+      // List of allowed origins
+      const allowedOrigins = [
+        'http://localhost:5173',  // Local development
+        'http://localhost:5174',  // Alternative port
+        'https://sqe-digitomize-production.up.railway.app',
+        'https://sqe-digitomize.up.railway.app',
+      ];
+      
+      // Check if the origin is in the allowed list
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      
+      // For development, you might want to be more permissive
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`Allowing origin in development: ${origin}`);
+        return callback(null, true);
+      }
+      
+      // If not allowed
+      const msg = `The CORS policy for this site does not allow access from the specified Origin: ${origin}`;
+      return callback(new Error(msg), false);
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ['Content-Type', 'Authorization']
   })
 );
 
