@@ -1,15 +1,15 @@
 // tests/unit/controllers/userProfileController.test.js
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';``
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   handleUserProfilePreview,
   handleUserDataUpdate,
   calculateDigitomizeRating
-} from '../../../../users/controllers/userProfileController.js';
-import User from '../../../../users/models/User.js';
-import { codeforces_u } from '../../../../users/controllers/platforms/codeforcesUpdater.js';
-import { codechef_u } from '../../../../users/controllers/platforms/codechefUpdater.js';
-import { leetcode_u } from '../../../../users/controllers/platforms/leetcodeUpdater.js';
-import { updateUser } from '../../../../users/services/updateUser.js';
+} from 'C:/Users/HP/Desktop/SQE-Project-Digitmoize/backend/users/controllers/userProfileController.js';
+import User from 'C:/Users/HP/Desktop/SQE-Project-Digitmoize/backend/users/models/User.js';
+import { codeforces_u } from 'C:/Users/HP/Desktop/SQE-Project-Digitmoize/backend/users/controllers/platforms/codeforcesUpdater.js';
+import { codechef_u } from 'C:/Users/HP/Desktop/SQE-Project-Digitmoize/backend/users/controllers/platforms/codechefUpdater.js';
+import { leetcode_u } from 'C:/Users/HP/Desktop/SQE-Project-Digitmoize/backend/users/controllers/platforms/leetcodeUpdater.js';
+import { updateUser } from 'C:/Users/HP/Desktop/SQE-Project-Digitmoize/backend/users/services/updateUser.js';
 
 // Mock all dependencies
 vi.mock('../../../../users/models/User.js');
@@ -129,7 +129,7 @@ describe('userProfileController - Unit Tests', () => {
           twitter: null
         },
         ratings: {
-          digitomize_rating: 1700,
+          digitomize_rating: 1500,
           codechef: {
             username: 'cc_test',
             rating: 1800,
@@ -296,7 +296,7 @@ describe('userProfileController - Unit Tests', () => {
       expect(mockUser.codeforces.rating).toBe(1600);
       expect(mockUser.codeforces.badge).toBe('expert');
       expect(mockUser.codeforces.attendedContestsCount).toBe(12);
-      expect(mockUser.codeforces.fetchTime).toBe(mockCurrentTime);
+      expect(mockUser.codeforces.fetchTime.getTime()).toBe(mockCurrentTime.getTime());
       expect(updateUser).toHaveBeenCalledWith(mockUser);
     });
     

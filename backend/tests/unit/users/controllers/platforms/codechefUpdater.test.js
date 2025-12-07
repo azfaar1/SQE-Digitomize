@@ -1,12 +1,16 @@
 // tests/unit/users/controllers/platforms/codechefUpdater.test.js
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { codechef_u } from '../../../../../controllers/platforms/codechefUpdater.js';
+import { codechef_u } from '../../../../../users/controllers/platforms/codechefUpdater.js';
 import https from 'https';
 
 // Mock https module
-vi.mock('https', () => ({
-  get: vi.fn()
-}));
+vi.mock('https', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    get: vi.fn()
+  };
+});
 
 describe('codechefUpdater - Unit Tests', () => {
   beforeEach(() => {

@@ -1,12 +1,16 @@
 // tests/unit/users/controllers/platforms/codeforcesUpdater.test.js
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { codeforces_u } from '../../../../../controllers/platforms/codeforcesUpdater.js';
+import { codeforces_u } from '../../../../../users/controllers/platforms/codeforcesUpdater.js';
 import https from 'https';
 
 // Mock https module
-vi.mock('https', () => ({
-  get: vi.fn()
-}));
+vi.mock('https', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    get: vi.fn()
+  };
+});
 
 describe('codeforcesUpdater - Unit Tests', () => {
   let mockRequest, mockResponse1, mockResponse2;

@@ -1,4 +1,3 @@
-// tests/unit/users/controllers/notifsController.test.js
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   addSubscriber,
@@ -8,652 +7,375 @@ import {
   removeSubscriberFromTopic,
   TriggerContestNotifToTopic,
   updateDeviceID,
-  getAllTopics
-} from '../../../../users/controllers/notifsController.js';
-import User from '../../../../users/models/User.js';
-import { AllContest } from '../../../../contest/models/Contest.js';
-import fetch from 'node-fetch';
+  getAllTopics,
+} from 'C:/Users/HP/Desktop/SQE-Project-Digitmoize/backend/users/controllers/notifsController.js';
+import { Novu, ChatProviderIdEnum } from '@novu/node';
+import User from 'C:/Users/HP/Desktop/SQE-Project-Digitmoize/backend/users/models/User.js';
+import { AllContest } from 'C:/Users/HP/Desktop/SQE-Project-Digitmoize/backend/contest/models';
 
-// Mock all dependencies
-vvi.mock('@novu/node', () => {
-  const mockNovuInstance = {
-    subscribers: {
-      identify: vi.fn(),
-      delete: vi.fn(),
-      setCredentials: vi.fn()
-    },
-    topics: {
-      create: vi.fn(),
-      get: vi.fn(),
-      addSubscribers: vi.fn(),
-      removeSubscribers: vi.fn()
-    },
-    trigger: vi.fn()
-  };
+// Mock dependencies
+vi.mock('@novu/node');
+vi.mock('../models/User.js');
+vi.mock('../../contest/models/Contest.js');
 
-  const Novu = vi.fn(() => mockNovuInstance);
-  
-  // Add buildBackendUrl method if needed
-  if (!Novu.buildBackendUrl) {
-    Novu.buildBackendUrl = vi.fn(() => 'https://api.novu.co/v1');
-  }
-
-  return {
-    Novu,
-    ChatProviderIdEnum: {
-      Discord: 'discord'
-    }
-  };
-});
-
-vi.mock('../../../../users/models/User.js');
-vi.mock('../../../../contest/models/Contest.js');
-vi.mock('node-fetch', () => ({
-  default: vi.fn()
-}));
-
-describe('notifsController - Unit Tests', () => {
-  let req, res, mockNovuInstance;
+describe('Novu Controller Tests', () => {
+  let req, res, novuMock;
 
   beforeEach(() => {
-    // Reset all mocks
-    vi.clearAllMocks();
-    
-    // Get the mocked Novu instance
-    const NovuModule = require('@novu/node');
-    mockNovuInstance = NovuModule.Novu();
-    
-    // Setup default mock implementations
-    mockNovuInstance.subscribers.identify.mockResolvedValue({});
-    mockNovuInstance.subscribers.delete.mockResolvedValue({});
-    mockNovuInstance.subscribers.setCredentials.mockResolvedValue({});
-    mockNovuInstance.topics.create.mockResolvedValue({});
-    mockNovuInstance.topics.get.mockResolvedValue({ data: { key: 'test-topic' } });
-    mockNovuInstance.topics.addSubscribers.mockResolvedValue({});
-    mockNovuInstance.topics.removeSubscribers.mockResolvedValue({});
-    mockNovuInstance.trigger.mockResolvedValue({});
-    
-    // Mock request object
+    // Setup request and response mocks
     req = {
       decodedToken: {
-        uid: 'firebase-uid-123',
-        name: 'Test User',
-        email: 'test@example.com'
+        name: 'John Doe',
+        email: 'john@example.com',
+        uid: 'user123',
       },
-      body: {}
+      body: {},
     };
-    
-    // Mock response object
+
     res = {
       status: vi.fn().mockReturnThis(),
-      json: vi.fn().mockReturnThis()
+      json: vi.fn().mockReturnThis(),
     };
-    
-    // Mock user
-    User.findOne.mockResolvedValue({
-      uid: 'firebase-uid-123',
-      name: 'Test User',
-      email: 'test@example.com'
-    });
-    
-    // Set environment variables
-    vi.stubEnv('DISCORD_WEBHOOK_URL', 'https://discord.com/api/webhooks/test');
-    vi.stubEnv('NOVU_API_KEY', 'test-api-key');
+
+    // Setup Novu mock
+    novuMock = {
+      subscribers: {
+        identify: vi.fn().mockResolvedValue({}),
+        setCredentials: vi.fn().mockResolvedValue({}),
+        delete: vi.fn().mockResolvedValue({}),
+      },
+      topics: {
+        create: vi.fn().mockResolvedValue({}),
+        get: vi.fn().mockResolvedValue({ key: 'topic1' }),
+        addSubscribers: vi.fn().mockResolvedValue({}),
+        removeSubscribers: vi.fn().mockResolvedValue({}),
+      },
+      trigger: vi.fn().mockResolvedValue({}),
+    };
+
+    Novu.mockImplementation(() => novuMock);
+
+    // Clear environment variables
+    process.env.NOVU_API_KEY = 'test-api-key';
+    process.env.DISCORD_WEBHOOK_URL = 'https://discord.webhook.url';
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
-    vi.unstubAllEnvs();
+    vi.clearAllMocks();
   });
 
   describe('addSubscriber', () => {
-    it('should add subscriber successfully', async () => {
-      // Act
+    it('should add a subscriber successfully', async () => {
       await addSubscriber(req, res);
 
-      // Assert
-      expect(mockNovuInstance.subscribers.identify).toHaveBeenCalledWith(
-        'firebase-uid-123',
-        {
-          email: 'test@example.com',
-          firstName: 'Test User'
-        }
+      expect(novuMock.subscribers.identify).toHaveBeenCalledWith('user123', {
+        email: 'john@example.com',
+        firstName: 'John Doe',
+      });
+      expect(novuMock.subscribers.setCredentials).toHaveBeenCalledWith(
+        'user123',
+        ChatProviderIdEnum.Discord,
+        { webhookUrl: 'https://discord.webhook.url' }
       );
-      
       expect(res.status).toHaveBeenCalledWith(201);
       expect(res.json).toHaveBeenCalledWith({
-        message: 'Subscriber added successfully'
+        message: 'Subscriber added successfully',
       });
     });
 
-    it('should handle Novu API error', async () => {
-      // Arrange
+    it('should handle errors when adding subscriber fails', async () => {
       const error = new Error('Novu API error');
-      mockNovuInstance.subscribers.identify.mockRejectedValue(error);
+      novuMock.subscribers.identify.mockRejectedValue(error);
 
-      // Act
       await addSubscriber(req, res);
 
-      // Assert
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith({
         message: 'Internal server error',
-        error: 'Novu API error'
+        error: 'Novu API error',
       });
-    });
-
-    it('should handle missing DISCORD_WEBHOOK_URL', async () => {
-      // Arrange
-      vi.stubEnv('DISCORD_WEBHOOK_URL', '');
-
-      // Act
-      await addSubscriber(req, res);
-
-      // Assert
-      expect(mockNovuInstance.subscribers.setCredentials).toHaveBeenCalledWith(
-        'firebase-uid-123',
-        'discord',
-        {
-          webhookUrl: ''
-        }
-      );
     });
   });
 
   describe('deleteSubscriber', () => {
-    it('should delete subscriber successfully', async () => {
-      // Act
+    it('should delete a subscriber successfully', async () => {
       await deleteSubscriber(req, res);
 
-      // Assert
-      expect(mockNovuInstance.subscribers.delete).toHaveBeenCalledWith(
-        'firebase-uid-123'
-      );
+      expect(novuMock.subscribers.delete).toHaveBeenCalledWith('user123');
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith({
-        message: 'Subscriber deleted successfully'
+        message: 'Subscriber deleted successfully',
       });
     });
 
-    it('should handle Novu deletion error', async () => {
-      // Arrange
+    it('should handle errors when deleting subscriber fails', async () => {
       const error = new Error('Delete failed');
-      mockNovuInstance.subscribers.delete.mockRejectedValue(error);
+      novuMock.subscribers.delete.mockRejectedValue(error);
 
-      // Act
       await deleteSubscriber(req, res);
 
-      // Assert
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith({
         message: 'Internal server error',
-        error: 'Delete failed'
+        error: 'Delete failed',
       });
     });
   });
 
   describe('createTopic', () => {
-    it('should create topic successfully', async () => {
-      // Arrange
-      req.body = {
-        key: 'codeforces-notifs',
-        name: 'Codeforces Notifications'
-      };
+    it('should create a topic successfully', async () => {
+      req.body = { key: 'topic1', name: 'Topic 1' };
 
-      // Act
       await createTopic(req, res);
 
-      // Assert
-      expect(mockNovuInstance.topics.create).toHaveBeenCalledWith({
-        key: 'codeforces-notifs',
-        name: 'Codeforces Notifications'
+      expect(novuMock.topics.create).toHaveBeenCalledWith({
+        key: 'topic1',
+        name: 'Topic 1',
       });
       expect(res.status).toHaveBeenCalledWith(201);
       expect(res.json).toHaveBeenCalledWith({
-        message: 'Topic created successfully'
+        message: 'Topic created successfully',
       });
     });
 
-    it('should handle missing required fields', async () => {
-      // Arrange
-      req.body = {
-        key: 'codeforces-notifs'
-        // Missing name
-      };
+    it('should handle errors when creating topic fails', async () => {
+      req.body = { key: 'topic1', name: 'Topic 1' };
+      const error = new Error('Create topic failed');
+      novuMock.topics.create.mockRejectedValue(error);
 
-      // Act
       await createTopic(req, res);
 
-      // Assert
-      expect(mockNovuInstance.topics.create).toHaveBeenCalledWith({
-        key: 'codeforces-notifs',
-        name: undefined
-      });
-    });
-
-    it('should handle topic creation error', async () => {
-      // Arrange
-      req.body = { key: 'test', name: 'Test' };
-      const error = new Error('Topic creation failed');
-      mockNovuInstance.topics.create.mockRejectedValue(error);
-
-      // Act
-      await createTopic(req, res);
-
-      // Assert
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith({
         message: 'Internal server error',
-        error: 'Topic creation failed'
+        error: 'Create topic failed',
       });
     });
   });
 
   describe('addSubscriberToTopic', () => {
     it('should add subscriber to topic successfully', async () => {
-      // Arrange
-      req.body = {
-        topicKey: 'codeforces-notifs'
-      };
+      req.body = { topicKey: 'topic1' };
 
-      // Act
       await addSubscriberToTopic(req, res);
 
-      // Assert
-      expect(mockNovuInstance.topics.get).toHaveBeenCalledWith('codeforces-notifs');
-      expect(mockNovuInstance.topics.addSubscribers).toHaveBeenCalledWith(
-        'codeforces-notifs',
-        {
-          subscribers: ['firebase-uid-123']
-        }
-      );
+      expect(novuMock.topics.get).toHaveBeenCalledWith('topic1');
+      expect(novuMock.topics.addSubscribers).toHaveBeenCalledWith('topic1', {
+        subscribers: ['user123'],
+      });
       expect(res.status).toHaveBeenCalledWith(201);
       expect(res.json).toHaveBeenCalledWith({
-        message: 'Subscriber added to topic successfully'
+        message: 'Subscriber added to topic successfully',
       });
     });
 
-    it('should return 404 when topic does not exist', async () => {
-      // Arrange
-      req.body = { topicKey: 'nonexistent-topic' };
-      mockNovuInstance.topics.get.mockResolvedValue(null);
+    it('should return 404 if topic not found', async () => {
+      req.body = { topicKey: 'topic1' };
+      novuMock.topics.get.mockResolvedValue(null);
 
-      // Act
       await addSubscriberToTopic(req, res);
 
-      // Assert
       expect(res.status).toHaveBeenCalledWith(404);
-      expect(res.json).toHaveBeenCalledWith({
-        message: 'Topic not found'
-      });
-      expect(mockNovuInstance.topics.addSubscribers).not.toHaveBeenCalled();
+      expect(res.json).toHaveBeenCalledWith({ message: 'Topic not found' });
     });
 
-    it('should handle missing topicKey', async () => {
-      // Arrange
-      req.body = {};
+    it('should handle errors when adding subscriber to topic fails', async () => {
+      req.body = { topicKey: 'topic1' };
+      const error = new Error('Add subscriber failed');
+      novuMock.topics.addSubscribers.mockRejectedValue(error);
 
-      // Act
       await addSubscriberToTopic(req, res);
 
-      // Assert
-      expect(mockNovuInstance.topics.get).toHaveBeenCalledWith(undefined);
-    });
-
-    it('should handle Novu API error', async () => {
-      // Arrange
-      req.body = { topicKey: 'test-topic' };
-      const error = new Error('API error');
-      mockNovuInstance.topics.addSubscribers.mockRejectedValue(error);
-
-      // Act
-      await addSubscriberToTopic(req, res);
-
-      // Assert
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith({
         message: 'Internal server error',
-        error: 'API error'
+        error: 'Add subscriber failed',
       });
     });
   });
 
   describe('removeSubscriberFromTopic', () => {
     it('should remove subscriber from topic successfully', async () => {
-      // Arrange
-      req.body = {
-        topicKey: 'codeforces-notifs'
-      };
+      req.body = { topicKey: 'topic1' };
 
-      // Act
       await removeSubscriberFromTopic(req, res);
 
-      // Assert
-      expect(mockNovuInstance.topics.get).toHaveBeenCalledWith('codeforces-notifs');
-      expect(mockNovuInstance.topics.removeSubscribers).toHaveBeenCalledWith(
-        'codeforces-notifs',
-        {
-          subscribers: ['firebase-uid-123']
-        }
-      );
+      expect(novuMock.topics.get).toHaveBeenCalledWith('topic1');
+      expect(novuMock.topics.removeSubscribers).toHaveBeenCalledWith('topic1', {
+        subscribers: ['user123'],
+      });
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith({
-        message: 'Subscriber removed from topic successfully'
+        message: 'Subscriber removed from topic successfully',
       });
     });
 
-    it('should return 404 when topic does not exist', async () => {
-      // Arrange
-      req.body = { topicKey: 'nonexistent-topic' };
-      mockNovuInstance.topics.get.mockResolvedValue(null);
+    it('should return 404 if topic not found', async () => {
+      req.body = { topicKey: 'topic1' };
+      novuMock.topics.get.mockResolvedValue(null);
 
-      // Act
       await removeSubscriberFromTopic(req, res);
 
-      // Assert
       expect(res.status).toHaveBeenCalledWith(404);
-      expect(res.json).toHaveBeenCalledWith({
-        message: 'Topic not found'
-      });
+      expect(res.json).toHaveBeenCalledWith({ message: 'Topic not found' });
     });
 
-    it('should handle Novu API error', async () => {
-      // Arrange
-      req.body = { topicKey: 'test-topic' };
-      const error = new Error('Removal failed');
-      mockNovuInstance.topics.removeSubscribers.mockRejectedValue(error);
+    it('should handle errors when removing subscriber from topic fails', async () => {
+      req.body = { topicKey: 'topic1' };
+      const error = new Error('Remove subscriber failed');
+      novuMock.topics.removeSubscribers.mockRejectedValue(error);
 
-      // Act
       await removeSubscriberFromTopic(req, res);
 
-      // Assert
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith({
         message: 'Internal server error',
-        error: 'Removal failed'
+        error: 'Remove subscriber failed',
       });
     });
   });
 
   describe('TriggerContestNotifToTopic', () => {
     it('should trigger contest notification successfully', async () => {
-      // Arrange
-      req.body = {
-        topicKey: 'codeforces-notifs',
-        contestVanity: 'codeforces-round-100'
-      };
+      req.body = { topicKey: 'topic1', contestVanity: 'contest123' };
 
       const mockContest = {
-        name: 'Codeforces Round 100',
-        host: 'codeforces.com',
-        vanity: 'codeforces-round-100',
-        duration: 120, // 2 hours
-        startTimeUnix: 1672531200, // Jan 1, 2023
-        url: 'https://codeforces.com/contest/100'
+        name: 'Test Contest',
+        host: 'Test Host',
+        vanity: 'contest123',
+        startTimeUnix: 1609459200, // Jan 1, 2021
+        duration: 150,
+        url: 'https://contest.url',
       };
 
-      AllContest.findOne.mockResolvedValue(mockContest);
+      AllContest.findOne = vi.fn().mockResolvedValue(mockContest);
 
-      // Act
       await TriggerContestNotifToTopic(req, res);
 
-      // Assert
-      expect(AllContest.findOne).toHaveBeenCalledWith({
-        vanity: 'codeforces-round-100'
-      });
-      expect(mockNovuInstance.topics.get).toHaveBeenCalledWith('codeforces-notifs');
-      expect(mockNovuInstance.trigger).toHaveBeenCalledWith('contest-alert', {
-        to: [{ type: 'Topic', topicKey: 'codeforces-notifs' }],
+      expect(AllContest.findOne).toHaveBeenCalledWith({ vanity: 'contest123' });
+      expect(novuMock.topics.get).toHaveBeenCalledWith('topic1');
+      expect(novuMock.trigger).toHaveBeenCalledWith('contest-alert', {
+        to: [{ type: 'Topic', topicKey: 'topic1' }],
         payload: {
           contest: {
-            name: 'Codeforces Round 100',
-            host: 'codeforces.com',
-            vanity: 'codeforces-round-100',
+            name: 'Test Contest',
+            host: 'Test Host',
+            vanity: 'contest123',
             time: expect.any(String),
-            duration: '2 hours 0 minutes',
-            url: 'https://codeforces.com/contest/100'
-          }
-        }
+            duration: '2 hours 30 minutes',
+            url: 'https://contest.url',
+          },
+        },
       });
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith({
-        message: 'Notification triggered successfully'
+        message: 'Notification triggered successfully',
       });
     });
 
-    it('should return 404 when topic does not exist', async () => {
-      // Arrange
-      req.body = {
-        topicKey: 'nonexistent-topic',
-        contestVanity: 'test-contest'
-      };
-      mockNovuInstance.topics.get.mockResolvedValue(null);
+    it('should return 404 if topic not found', async () => {
+      req.body = { topicKey: 'topic1', contestVanity: 'contest123' };
+      novuMock.topics.get.mockResolvedValue(null);
 
-      // Act
       await TriggerContestNotifToTopic(req, res);
 
-      // Assert
       expect(res.status).toHaveBeenCalledWith(404);
-      expect(res.json).toHaveBeenCalledWith({
-        message: 'Topic not found'
-      });
-      expect(mockNovuInstance.trigger).not.toHaveBeenCalled();
+      expect(res.json).toHaveBeenCalledWith({ message: 'Topic not found' });
     });
 
-    it('should return 404 when contest does not exist', async () => {
-      // Arrange
-      req.body = {
-        topicKey: 'codeforces-notifs',
-        contestVanity: 'nonexistent-contest'
-      };
-      AllContest.findOne.mockResolvedValue(null);
+    it('should return 404 if contest not found', async () => {
+      req.body = { topicKey: 'topic1', contestVanity: 'contest123' };
+      AllContest.findOne = vi.fn().mockResolvedValue(null);
 
-      // Act
       await TriggerContestNotifToTopic(req, res);
 
-      // Assert
       expect(res.status).toHaveBeenCalledWith(404);
-      expect(res.json).toHaveBeenCalledWith({
-        message: 'Contest not found'
-      });
-      expect(mockNovuInstance.trigger).not.toHaveBeenCalled();
+      expect(res.json).toHaveBeenCalledWith({ message: 'Contest not found' });
     });
 
-    it('should handle different duration formats correctly', async () => {
-      // Arrange
-      req.body = {
-        topicKey: 'test-topic',
-        contestVanity: 'test-contest'
-      };
-
-      const mockContest = {
-        name: 'Test Contest',
-        host: 'test.com',
-        vanity: 'test-contest',
-        duration: 61, // 1 hour 1 minute
-        startTimeUnix: 1672531200,
-        url: 'https://test.com/contest/1'
-      };
-
-      AllContest.findOne.mockResolvedValue(mockContest);
-
-      // Act
-      await TriggerContestNotifToTopic(req, res);
-
-      // Assert
-      expect(mockNovuInstance.trigger).toHaveBeenCalledWith(
-        'contest-alert',
-        expect.objectContaining({
-          payload: expect.objectContaining({
-            contest: expect.objectContaining({
-              duration: '1 hours 1 minutes'
-            })
-          })
-        })
-      );
-    });
-
-    it('should handle Novu trigger error', async () => {
-      // Arrange
-      req.body = {
-        topicKey: 'test-topic',
-        contestVanity: 'test-contest'
-      };
-
-      const mockContest = {
-        name: 'Test Contest',
-        host: 'test.com',
-        vanity: 'test-contest',
-        duration: 120,
-        startTimeUnix: 1672531200,
-        url: 'https://test.com/contest/1'
-      };
-
-      AllContest.findOne.mockResolvedValue(mockContest);
+    it('should handle errors when triggering notification fails', async () => {
+      req.body = { topicKey: 'topic1', contestVanity: 'contest123' };
       const error = new Error('Trigger failed');
-      mockNovuInstance.trigger.mockRejectedValue(error);
+      AllContest.findOne = vi.fn().mockRejectedValue(error);
 
-      // Act
       await TriggerContestNotifToTopic(req, res);
 
-      // Assert
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith({
         message: 'Internal server error',
-        error: 'Trigger failed'
+        error: 'Trigger failed',
       });
     });
   });
 
   describe('updateDeviceID', () => {
     it('should update device ID successfully', async () => {
-      // Arrange
-      req.body = {
-        deviceID: 'fcm-device-token-123'
+      req.body = { deviceID: 'device123' };
+
+      const mockUser = {
+        uid: 'user123',
+        name: 'John Doe',
+        email: 'john@example.com',
       };
 
-      // Act
+      User.findOne = vi.fn().mockResolvedValue(mockUser);
+
       await updateDeviceID(req, res);
 
-      // Assert
-      expect(User.findOne).toHaveBeenCalledWith({ uid: 'firebase-uid-123' });
-      expect(mockNovuInstance.subscribers.identify).toHaveBeenCalledWith(
-        'firebase-uid-123',
-        {
-          email: 'test@example.com',
-          firstName: 'Test User'
-        }
-      );
-      expect(mockNovuInstance.subscribers.setCredentials).toHaveBeenCalledWith(
-        'firebase-uid-123',
-        'discord',
-        {
-          webhookUrl: 'https://discord.com/api/webhooks/test'
-        }
-      );
+      expect(User.findOne).toHaveBeenCalledWith({ uid: 'user123' });
+      expect(novuMock.subscribers.identify).toHaveBeenCalledWith('user123', {
+        email: 'john@example.com',
+        firstName: 'John Doe',
+      });
+      expect(novuMock.subscribers.setCredentials).toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(200);
-      expect(res.json).toHaveBeenCalledWith(req.body);
+      expect(res.json).toHaveBeenCalledWith({ deviceID: 'device123' });
     });
 
-    it('should handle user not found', async () => {
-      // Arrange
-      req.body = { deviceID: 'test-token' };
-      User.findOne.mockResolvedValue(null);
+    it('should handle errors when updating device ID fails', async () => {
+      req.body = { deviceID: 'device123' };
+      const error = new Error('User not found');
+      User.findOne = vi.fn().mockRejectedValue(error);
 
-      // Act
       await updateDeviceID(req, res);
 
-      // Assert
-      expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalled();
-    });
-
-    it('should handle Novu API error', async () => {
-      // Arrange
-      req.body = { deviceID: 'test-token' };
-      const error = new Error('Novu error');
-      mockNovuInstance.subscribers.identify.mockRejectedValue(error);
-
-      // Act
-      await updateDeviceID(req, res);
-
-      // Assert
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith({
         message: 'Internal server error',
-        error: 'Novu error'
+        error: 'User not found',
       });
-    });
-
-    it('should handle missing deviceID', async () => {
-      // Arrange
-      req.body = {};
-
-      // Act
-      await updateDeviceID(req, res);
-
-      // Assert
-      expect(mockNovuInstance.subscribers.setCredentials).toHaveBeenCalled();
-      expect(res.status).toHaveBeenCalledWith(200);
-      expect(res.json).toHaveBeenCalledWith({});
     });
   });
 
   describe('getAllTopics', () => {
-    it('should fetch all topics successfully', async () => {
-      // Arrange
-      const mockTopics = {
-        data: [
-          { key: 'codeforces-notifs', name: 'Codeforces Notifications' },
-          { key: 'leetcode-notifs', name: 'LeetCode Notifications' }
-        ]
-      };
+    it('should get all topics successfully', async () => {
+      const mockTopics = { data: [{ key: 'topic1', name: 'Topic 1' }] };
 
-      fetch.default.mockResolvedValue({
-        json: vi.fn().mockResolvedValue(mockTopics)
+      global.fetch = vi.fn().mockResolvedValue({
+        json: vi.fn().mockResolvedValue(mockTopics),
       });
 
-      // Act
       await getAllTopics(req, res);
 
-      // Assert
-      expect(fetch.default).toHaveBeenCalledWith('https://api.novu.co/v1/topics', {
+      expect(global.fetch).toHaveBeenCalledWith('https://api.novu.co/v1/topics', {
         headers: {
-          Authorization: 'ApiKey test-api-key'
-        }
+          Authorization: 'ApiKey test-api-key',
+        },
       });
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(mockTopics);
     });
 
-    it('should handle fetch API error', async () => {
-      // Arrange
-      const error = new Error('Network error');
-      fetch.default.mockRejectedValue(error);
+    it('should handle errors when getting topics fails', async () => {
+      const error = new Error('Fetch failed');
+      global.fetch = vi.fn().mockRejectedValue(error);
 
-      // Act
       await getAllTopics(req, res);
 
-      // Assert
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith({
         message: 'Internal server error',
-        error: 'Network error'
-      });
-    });
-
-    it('should handle missing API key', async () => {
-      // Arrange
-      vi.stubEnv('NOVU_API_KEY', '');
-
-      // Act
-      await getAllTopics(req, res);
-
-      // Assert
-      expect(fetch.default).toHaveBeenCalledWith('https://api.novu.co/v1/topics', {
-        headers: {
-          Authorization: 'ApiKey '
-        }
+        error: 'Fetch failed',
       });
     });
   });

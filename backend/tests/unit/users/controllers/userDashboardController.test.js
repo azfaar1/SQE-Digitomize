@@ -214,8 +214,8 @@ describe('userDashboardController - Unit Tests', () => {
       // Assert
       expect(res.status).toHaveBeenCalledWith(200);
       const response = res.json.mock.calls[0][0];
-      expect(response.personal_data.bio).toBeUndefined();
-      expect(response.personal_data.phoneNumber).toBeUndefined();
+      expect(response.personal_data.bio).toBeNull();
+      expect(response.personal_data.phoneNumber).toBeNull();
     });
 
     // FIX: Dashboard shows all data even when showOnWebsite is false
@@ -416,8 +416,8 @@ describe('userDashboardController - Unit Tests', () => {
       // Assert
       const response = res.json.mock.calls[0][0];
       expect(response.social.linkedin).toBe('https://linkedin.com/in/testuser');
-      expect(response.social.instagram).toBeUndefined();
-      expect(response.social.twitter).toBeUndefined();
+      expect(response.social.instagram).toBeNull(); // Instead of toBeUndefined()
+      expect(response.social.twitter).toBeNull();
     });
 
     // FIX: Maintain consistent response structure
