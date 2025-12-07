@@ -75,9 +75,9 @@ app.use((req, res, next) => {
 });
 
 // Apply route logging only in production (optional)
-if (process.env.NODE_ENV === "production") {
-  app.use(routeLogging);
-}
+// if (process.env.NODE_ENV === "production") {
+//   app.use(routeLogging);
+// }
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
